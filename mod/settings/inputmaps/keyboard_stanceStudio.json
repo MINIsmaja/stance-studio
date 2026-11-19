@@ -1,0 +1,7 @@
+{
+  "devicetype":"keyboard",
+  "version":1,
+  "bindings":[
+    {"action":"stanceStudio_toggle", "control":"alt e"}
+  ]
+}
