@@ -529,6 +529,29 @@ end
 
 -- MARK: public: wheels
 
+-- slots with "wheel" in the name that aren't road wheels
+local WHEEL_EXCLUDE = {"steering", "steer_", "spare", "wheelie", "hubcap", "tire", "tyre", "wheelbase", "wheeldata",
+  "wheel_data", "flywheel", "fifthwheel", "fifth_wheel", "fifth wheel", "wheelskirt", "wheel_skirt", "wheel skirt",
+  "wheelarch", "wheel_arch", "wheel arch", "wheelwell", "wheel_well", "wheel well", "wheelchair", "handwheel"}
+
+-- wheels carry their tire slot; hubs, axles and trims don't
+local function hasTireChild(node)
+  for childId in pairs(node.children or {}) do
+    local c = lower(childId)
+    if c:find("tire", 1, true) or c:find("tyre", 1, true) then return true end
+  end
+  return false
+end
+
+-- how sure we are that a slot holds the wheels (rims) themselves
+local function wheelSlotScore(node, id, text)
+  local score = 0
+  if hasTireChild(node) then score = score + 4 end
+  if id:match("^wheels?_") then score = score + 2 end            -- the game's wheel_F_5 / wheel_R_4 slots
+  if text:find("hub", 1, true) then score = score - 3 end        -- "Front Wheel Hubs" hold the wheels one level down
+  return score
+end
+
 local function wheelSlots(vehData, available)
   local tree = vehData.config.partsTree
   local slots = {}
@@ -538,18 +561,25 @@ local function wheelSlots(vehData, available)
     local id = lower(slotId)
     local desc = slotDescription(available, parentPartName, slotId)
     local text = id .. " " .. lower(desc)
-    if not (text:find("wheel", 1, true)) then return end
-    if matchesAny(text, {"steering", "steer_", "spare", "wheelie", "hubcap", "tire", "tyre", "wheelbase", "wheeldata", "wheel_data"}) then return end
+    if not (text:find("wheel", 1, true) or text:find("%f[%a]rims?%f[%A]")) then return end
+    if matchesAny(text, WHEEL_EXCLUDE) then return end
     local axle = nil
     if id:find("_f[_%d]", 1) or id:match("_f$") or text:find("front", 1, true) then axle = "F"
     elseif id:find("_r[_%d]", 1) or id:match("_r$") or text:find("rear", 1, true) then axle = "R" end
-    slots[#slots + 1] = {node = node, slotId = slotId, desc = desc, axle = axle, depth = depth}
+    slots[#slots + 1] = {node = node, slotId = slotId, desc = desc, axle = axle, depth = depth,
+      score = wheelSlotScore(node, id, text)}
   end)
-  -- keep the shallowest front and rear slot (wheel parts can carry their own sub slots)
+  -- per axle: the most wheel-like slot; on a tie the shallowest (a wheel's own trim slots sit below it)
   local best = {}
   for _, s in ipairs(slots) do
     local key = s.axle or "B"
-    if not best[key] or s.depth < best[key].depth then best[key] = s end
+    local b = best[key]
+    if not b or s.score > b.score or (s.score == b.score and s.depth < b.depth) then best[key] = s end
+  end
+  -- a slot with no axle in its name only counts as "all wheels" when it beats the front / rear ones
+  if best.B and (best.F or best.R) then
+    local fr = math.max(best.F and best.F.score or -math.huge, best.R and best.R.score or -math.huge)
+    if best.B.score <= fr then best.B = nil end
   end
   return best
 end
