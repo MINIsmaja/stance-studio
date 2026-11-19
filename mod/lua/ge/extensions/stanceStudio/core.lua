@@ -25,6 +25,7 @@ local defaultSettings = {
   linkAxles = false,
   photoPass = "auto",      -- "auto" (background helper car), "ask" or "off"
   gains = {},              -- learned ride-height gain per vehicle model
+  hasOpened = false,       -- the "press Alt + E" hint shows on every map load until the menu was opened once
 }
 
 local settings = nil
@@ -34,6 +35,7 @@ local axleCache = {}       -- vehId -> {wheelIndex -> "F"/"R"}
 local spawnCount = 0      -- bumps on every respawn so the UI knows to reload part lists
 local powerQuery = nil    -- {vehId, timer}: read engine power a moment after a spawn
 local queryPower          -- defined below
+local welcomeTimer = nil  -- seconds until the first-time "press Alt + E" hint
 
 -- MARK: helpers
 
@@ -418,7 +420,45 @@ function M.onVehicleDestroyed(vid)
   axleCache[vid] = nil
 end
 
+-- "alt e" -> "Alt + E" (same as controlLabel in the UI)
+local function keyLabel(control)
+  if type(control) ~= "string" or control == "" then return nil end
+  local parts = {}
+  for p in control:gmatch("%S+") do
+    parts[#parts + 1] = (#p <= 2) and p:upper() or (p:sub(1, 1):upper() .. p:sub(2))
+  end
+  return table.concat(parts, " + ")
+end
+
+-- first-time hint, until the menu has been opened once
+local function showWelcome()
+  if not settings then loadSettings() end
+  if settings.hasOpened or isOpen or careerActive() or not getPlayerVehicle(0) then return end
+  local ok, control = pcall(function() return core_input_bindings.getControlForAction(ACTION) end)
+  local key = ok and keyLabel(control) or nil
+  local msg
+  if key then
+    msg = "Press " .. key .. " to open Stance Studio: stance, wheels and performance parts for your car. You can change the key in its Settings tab."
+  else
+    msg = "Open Stance Studio from the pause menu under Mods, or give it a key in Options > Controls (\"Stance Studio: open / close\")."
+  end
+  guihooks.trigger("toastrMsg", {type = "info", title = "Stance Studio is installed", msg = msg,
+    config = {timeOut = 15000, closeButton = true}})
+end
+
+function M.onWorldReadyState(state)
+  -- 2 = map loaded and the loading screen is gone; wait a moment so the hint isn't missed
+  if state == 2 then welcomeTimer = 4 end
+end
+
 function M.onUpdate(dtReal, dtSim)
+  if welcomeTimer then
+    welcomeTimer = welcomeTimer - (dtReal or 0)
+    if welcomeTimer <= 0 then
+      welcomeTimer = nil
+      showWelcome()
+    end
+  end
   if powerQuery then
     powerQuery.timer = powerQuery.timer - (dtReal or 0)
     if powerQuery.timer <= 0 then
@@ -518,6 +558,11 @@ end
 -- called by the UI when the screen mounts / unmounts
 function M.onUiOpened()
   isOpen = true
+  if not settings then loadSettings() end
+  if not settings.hasOpened then
+    settings.hasOpened = true
+    saveSettingsFile()
+  end
 end
 
 function M.onUiClosed()

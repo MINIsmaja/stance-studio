@@ -3,6 +3,9 @@
 A BeamNG.drive tuning menu that works on every car, mod cars included. It covers stance, wheels and
 performance parts in one place, with a key you choose.
 
+> **To open it for the first time, press `Alt + E`** in freeroam. The game also reminds you with a
+> notification when a map loads, until you've opened it once.
+
 ## Features
 
 - **Stance, on any car.** Ride height, camber, toe, wheel offset (track width), spring stiffness,
