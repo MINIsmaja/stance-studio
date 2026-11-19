@@ -22,7 +22,7 @@ M.axleKeys = {"rideHeight", "camber", "toe", "offset", "spring", "damp", "steer"
 M.defaultAxle = {rideHeight = 0, camber = 0, toe = 0, offset = 0, spring = 1, damp = 1, steer = 1}
 -- hard limits, the UI ranges sit inside these
 M.limits = {
-  rideHeight = {-0.50, 0.25}, -- m, negative = lower
+  rideHeight = {-0.50, 0.50}, -- m, negative = lower
   camber     = {-30, 15},     -- deg, negative = top of the wheel leans in
   toe        = {-5, 5},       -- deg, positive = toe-in
   offset     = {-0.10, 0.35}, -- m per side, positive = wheel moves out
@@ -31,9 +31,12 @@ M.limits = {
   steer      = {0.5, 4},      -- steering lock multiplier (drift-kit style)
 }
 -- "auto" ride height: the springs do the first part (like coilovers), anything lower moves the
--- wheel up on the hub, so the car can sit as low as you like and still has its suspension travel
+-- wheel up on the hub, so the car can sit as low as you like and still has its suspension travel.
+-- Lifting works the same way: the springs do the first 10 cm, anything higher moves the wheel
+-- down on the hub (like a lift kit), because springs alone top out on the droop stops.
 M.SPRING_RANGE = 0.05
-M.HUB_EXTRA_MAX = 0.45
+M.SPRING_LIFT_RANGE = 0.10
+M.HUB_EXTRA_MAX = 0.45 -- measured top-up on the hub, up (lowering) or down (lifting)
 
 local function clampNum(v, lim, default)
   v = tonumber(v)
@@ -61,7 +64,7 @@ function M.normalize(cfg)
     local b = type(cfg.base) == "table" and tonumber(cfg.base[axle]) or nil
     out.base[axle] = b
     local h = type(cfg.hubExtra) == "table" and tonumber(cfg.hubExtra[axle]) or 0
-    out.hubExtra[axle] = min(max(h, 0), M.HUB_EXTRA_MAX)
+    out.hubExtra[axle] = min(max(h, -M.HUB_EXTRA_MAX), M.HUB_EXTRA_MAX)
   end
   return out
 end
@@ -75,7 +78,7 @@ function M.splitRideHeight(cfg, axleKey, hasSprings)
   elseif cfg.method == "springs" then
     return h, extra
   end
-  local springPart = h < 0 and max(h, -M.SPRING_RANGE) or h
+  local springPart = h < 0 and max(h, -M.SPRING_RANGE) or min(h, M.SPRING_LIFT_RANGE)
   return springPart, -(h - springPart) + extra
 end
 
@@ -88,7 +91,7 @@ end
 
 function M.isNeutral(cfg)
   local extra = cfg.hubExtra or {}
-  return axleIsNeutral(cfg.F) and axleIsNeutral(cfg.R) and (extra.F or 0) < 1e-6 and (extra.R or 0) < 1e-6
+  return axleIsNeutral(cfg.F) and axleIsNeutral(cfg.R) and abs(extra.F or 0) < 1e-6 and abs(extra.R or 0) < 1e-6
 end
 
 local function addGroups(set, g)
@@ -148,6 +151,31 @@ local function collectWheels(vehicle)
   return list
 end
 M.collectWheels = collectWheels
+
+-- Stock size of the vehicle: height (highest node down to the bottom of the lowest tire) and
+-- mass (node weights, tires not counted). Measured in phase 1 before any stance edits, so
+-- lifting or lowering does not change it. The menu uses the mass to spot heavy vehicles.
+M.DEFAULT_NODE_WEIGHT = 25 -- what the jbeam loader uses for nodes without a nodeWeight
+function M.measureSize(vehicle)
+  local wheels = collectWheels(vehicle)
+  if #wheels == 0 then return nil end
+  local ground, tireRadius = math.huge, 0
+  for _, w in ipairs(wheels) do
+    local r = tonumber(w.row.radius) or tonumber(w.row.hubRadius) or 0.3
+    tireRadius = max(tireRadius, r)
+    ground = min(ground, w.center.z - r)
+  end
+  local top, mass = -math.huge, 0
+  local defaultWeight = tonumber(vehicle.options and vehicle.options.nodeWeight) or M.DEFAULT_NODE_WEIGHT
+  for _, n in pairs(vehicle.nodes) do
+    if type(n) == "table" and n.pos then
+      top = max(top, n.pos.z)
+      mass = mass + (tonumber(n.nodeWeight) or defaultWeight)
+    end
+  end
+  if top == -math.huge then return nil end
+  return {height = top - ground, tireRadius = tireRadius, mass = mass}
+end
 
 local function nodeInGroups(node, set)
   local g = node.group
@@ -297,6 +325,57 @@ local function beamLengthAndVerticality(vehicle, beam)
   return L, abs(d.z) / L, (a.pos + b.pos) * 0.5
 end
 
+-- beams that tie a wheel assembly to the rest of the car (exactly one end in the assembly),
+-- with their length before the assembly moves
+local function bridgeBeams(vehicle, assemblySet)
+  local list = {}
+  for _, beam in pairs(vehicle.beams or {}) do
+    if type(beam) == "table" and type(beam.id1) == "number" and type(beam.id2) == "number"
+      and (assemblySet[beam.id1] == true) ~= (assemblySet[beam.id2] == true) then
+      local L = beamLengthAndVerticality(vehicle, beam)
+      if L then list[#list + 1] = {beam = beam, L = L} end
+    end
+  end
+  return list
+end
+
+-- A wheel moved far on its hub (big lift, slam, offset or camber) hangs on hub beams that are now
+-- long struts with a big lever on them. With the stock break and deform limits they bend and
+-- snap, and the whole break group goes with them: the wheel falls off. Once the wheel moved more
+-- than 3 cm (or a hub beam changed length a lot), all its hub beams become unbreakable and rigid
+-- together, like a real spindle extension: one weak beam left would still let the wheel flop.
+-- Small stance changes keep the stock crash behaviour.
+M.REINFORCE_MOVE, M.REINFORCE_RATIO = 0.03, 1.25
+local function reinforceHub(vehicle, bridges, moved)
+  local needed = moved > M.REINFORCE_MOVE
+  if not needed then
+    for _, b in ipairs(bridges) do
+      local L = beamLengthAndVerticality(vehicle, b.beam)
+      if L and (L > b.L * M.REINFORCE_RATIO or L < b.L / M.REINFORCE_RATIO or abs(L - b.L) > M.REINFORCE_MOVE) then
+        needed = true
+        break
+      end
+    end
+  end
+  if not needed then return 0 end
+  for _, b in ipairs(bridges) do
+    b.beam.beamStrength = math.huge
+    b.beam.beamDeform = math.huge
+    b.beam.breakGroup = nil
+  end
+  return #bridges
+end
+
+-- pressure wheels also get generated beams from the hub to a stabilizer node on the knuckle;
+-- when the wheel moved away from it, those get the same treatment
+local function reinforceStabilizer(vehicle, row, assemblySet)
+  local s = row.nodeStabilizer or row.nodeS
+  if s == nil or s == 9999 or assemblySet[s] or not vehicle.nodes[s] then return false end
+  row.hubStabilizerBeamStrength = math.huge
+  row.hubStabilizerBeamDeform = math.huge
+  return true
+end
+
 local function lowerName(beam)
   return string.lower(tostring(beam.name or "") .. " " .. tostring(beam.vkTag or ""))
 end
@@ -432,7 +511,7 @@ function M.apply(vehicle, cfg)
       -- ride height, stiffness, damping
       local dropZ = 0
       local hubExtra = cfg.hubExtra and cfg.hubExtra[w.axle] or 0
-      local wantsHeight = abs(a.rideHeight) > 1e-5 or hubExtra > 1e-5
+      local wantsHeight = abs(a.rideHeight) > 1e-5 or abs(hubExtra) > 1e-5
       local wantsSusp = wantsHeight or abs(a.spring - 1) > 1e-5 or abs(a.damp - 1) > 1e-5
       if wantsSusp then
         adjacency = adjacency or buildAdjacency(vehicle)
@@ -476,6 +555,12 @@ function M.apply(vehicle, cfg)
       -- geometry: rotate about the wheel center, then move
       local c = w.center
       local s = w.side
+      local moves = abs(a.camber) > 1e-6 or abs(a.toe) > 1e-6 or abs(a.offset) > 1e-6 or abs(dropZ) > 1e-6
+      local bridges = moves and bridgeBeams(vehicle, assemblySet) or nil
+      local before = {}
+      if bridges then
+        for _, node in ipairs(assemblyList) do before[node] = vec3(node.pos) end
+      end
       if abs(a.camber) > 1e-6 then
         local step = {nodeRotate = {x = 0, y = s * a.camber, z = 0, px = c.x, py = c.y, pz = c.z}}
         applyStep(step, moveNodes, flex)
@@ -491,6 +576,12 @@ function M.apply(vehicle, cfg)
       if abs(dropZ) > 1e-6 then
         local step = {nodeMove = {x = 0, y = 0, z = dropZ}}
         applyStep(step, moveNodes, flex)
+      end
+      if bridges then
+        local moved = 0
+        for node, p in pairs(before) do moved = max(moved, (node.pos - p):length()) end
+        corner.reinforced = reinforceHub(vehicle, bridges, moved)
+        if corner.reinforced > 0 then corner.stabilizer = reinforceStabilizer(vehicle, w.row, assemblySet) end
       end
       if corner.method == "none" and (abs(a.camber) > 1e-6 or abs(a.toe) > 1e-6 or abs(a.offset) > 1e-6) then
         corner.method = "geometry"

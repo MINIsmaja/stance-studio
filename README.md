@@ -10,8 +10,15 @@ performance parts in one place, with a key you choose.
 
 - **Stance, on any car.** Ride height, camber, toe, wheel offset (track width), spring stiffness,
   damping and steering angle, per axle or linked.
+  - Ride height goes from −250 to +200 mm on cars, SUVs and vans, and ±400 mm on pickups and
+    heavy vehicles (4 t and up: box trucks, semis, buses). Extreme range in Settings allows
+    ±500 mm on anything.
   - Slam it lower than the game allows, down to scraping. The first 5 cm come from the springs,
     the rest from lowering the hub, so the suspension keeps its travel.
+  - Lift it like a lift kit: the first 10 cm come from the springs, anything higher drops the
+    wheels on the hubs.
+  - Wheels stay on. When a wheel is moved far on its hub, the beams that hold it are reinforced
+    so they don't snap and drop the wheel.
   - A ghost tire shows where the wheel will end up while you drag a slider, and the real ride
     height is measured after every change.
   - Quick looks: Flush, Track, Slammed, Hellaflush, Scraping, Drift lock, Lifted.

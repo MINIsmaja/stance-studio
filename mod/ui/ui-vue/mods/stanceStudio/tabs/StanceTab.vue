@@ -105,8 +105,22 @@ function lenRange(normal, ext) {
   return { min: +(r[0] / 25.4).toFixed(1), max: +(r[1] / 25.4).toFixed(1), step: 0.05, decimals: 2 }
 }
 
+// The normal ride height range is -400 / +400 mm only for vehicles that hold up to it: pickups
+// (body style "Pickup") and heavy vehicles of 4 t and up (box trucks, semis, buses). Everything
+// else, SUVs and vans included, gets -250 / +200 mm. Without a mass measurement (car spawned
+// before the mod loaded), truck and bus tires decide.
+const HEAVY_KG = 4000
+const bigRange = computed(() => {
+  const style = String(store.state?.vehicle?.bodyStyle || "").toLowerCase()
+  if (style.includes("pickup")) return true
+  const mass = store.state?.size?.mass
+  if (mass > 0) return mass >= HEAVY_KG
+  return Math.max(wheels.value.F?.radius || 0, wheels.value.R?.radius || 0) >= 0.46
+})
+const heightRange = computed(() => (bigRange.value ? [-400, 400] : [-250, 200]))
+
 const geometryDefs = computed(() => [
-  { key: "rideHeight", props: { label: "Ride height", unit: lenUnit.value, ...lenRange([-250, 100], [-500, 250]), hint: "Negative = lower. Goes past the bump stops, all the way down to scraping." } },
+  { key: "rideHeight", props: { label: "Ride height", unit: lenUnit.value, ...lenRange(heightRange.value, [-500, 500]), hint: "Negative = lower, positive = lift. ±400 mm on pickups, trucks and buses, −250 / +200 mm on everything else. Lifting past +100 mm drops the wheels on the hubs, like a lift kit." } },
   { key: "camber", props: { label: "Camber", unit: "°", min: extreme.value ? -30 : -15, max: extreme.value ? 15 : 5, step: 0.1, decimals: 1, hint: "Negative = top of the wheel leans in." } },
   { key: "offset", props: { label: "Wheel offset / track", unit: lenUnit.value, ...lenRange([-30, 120], [-100, 350]), hint: "Per side, like spacers. Positive = wheels further out." } },
   { key: "toe", props: { label: "Toe", unit: "°", min: extreme.value ? -5 : -2, max: extreme.value ? 5 : 2, step: 0.05, decimals: 2, hint: "Positive = toe-in (fronts of the wheels point inward)." } },
@@ -208,9 +222,9 @@ function applyPreset(p) {
 const methodText = computed(() => {
   const corners = list(report.value?.corners).filter(c => c.axle === axle.value)
   if (!corners.length) return "Universal stance: works on any car"
-  if (corners.some(c => c.method === "springs+hub")) return "Ride height: springs + drop hub"
+  if (corners.some(c => c.method === "springs+hub")) return "Ride height: springs + hub"
   if (corners.some(c => c.method === "springs")) return "Ride height: springs"
-  if (corners.some(c => c.method === "hub")) return "Ride height: drop hub"
+  if (corners.some(c => c.method === "hub")) return "Ride height: hub"
   return "Universal stance"
 })
 const measuredText = computed(() => {

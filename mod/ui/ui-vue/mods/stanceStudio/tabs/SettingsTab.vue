@@ -44,7 +44,7 @@
         <button :class="{ active: s.range !== 'extreme' }" @click="set({ range: 'normal' })">Normal</button>
         <button :class="{ active: s.range === 'extreme' }" @click="set({ range: 'extreme' })">Extreme</button>
       </div>
-      <div class="ss-muted ss-note">Extreme allows up to −25° camber, 30 cm lower and 25 cm wider per side.</div>
+      <div class="ss-muted ss-note">Normal ride height is ±400 mm on pickups and heavy vehicles (4 t and up: box trucks, semis, buses) and −250 to +200 mm on everything else, SUVs and vans included. Extreme allows up to −30° camber, ±50 cm ride height and 35 cm wider per side.</div>
     </div>
 
     <div class="ss-section">
@@ -54,7 +54,7 @@
         <button :class="{ active: s.method === 'springs' }" @click="setMethod('springs')">Springs only</button>
         <button :class="{ active: s.method === 'hub' }" @click="setMethod('hub')">Drop hub only</button>
       </div>
-      <div class="ss-muted ss-note">Auto lowers the first 5 cm on the springs like coilovers, then moves the wheels up on the hubs for anything lower, so the car can sit on the ground and still has its suspension travel. Springs only stops where the bump stops are. Drop hub only never touches the springs.</div>
+      <div class="ss-muted ss-note">Auto lowers the first 5 cm on the springs like coilovers, then moves the wheels up on the hubs for anything lower, so the car can sit on the ground and still has its suspension travel. Lifting works the same way: the first 10 cm on the springs, anything higher drops the wheels on the hubs. Springs only stops where the bump stops are. Drop hub only never touches the springs.</div>
       <label class="ss-toggle">
         <input type="checkbox" :checked="s.autoCorrect" @change="e => set({ autoCorrect: e.target.checked })" />
         <span>Auto-correct ride height (one extra respawn when the measured height misses the target)</span>

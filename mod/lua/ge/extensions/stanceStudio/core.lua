@@ -110,6 +110,15 @@ local function modelName(vehData)
   return name
 end
 
+-- the model's "Body Style" from its info.json ("Pickup", "SUV", "Van", "Bus", ...), or nil
+local function bodyStyleOf(vehData)
+  local ok, res = pcall(function()
+    local m = core_vehicles.getModel(modelOf(vehData))
+    return m and m.model and m.model["Body Style"]
+  end)
+  return ok and type(res) == "string" and res or nil
+end
+
 local function currentStance(vehData)
   local cfg = stance.normalize(vehData.config and vehData.config.stanceStudio)
   if not (vehData.config and vehData.config.stanceStudio) then
@@ -247,11 +256,13 @@ function M.getState()
     id = vehId,
     model = modelOf(vehData),
     name = modelName(vehData),
+    bodyStyle = bodyStyleOf(vehData),
     configName = vehData.config and vehData.config.partConfigFilename,
   }
   state.stance = cfg
   state.report = stanceStudio_jbeam.reports[vehId]
   state.wheels = wheelInfo(vehId, vehData.vdata)
+  state.size = stanceStudio_jbeam.sizes[vehId]
   state.measured = m
   state.actual = actual
   state.busy = pendingMeasure ~= nil
@@ -341,9 +352,15 @@ local function finishMeasure()
       end
       local tol = math.max(0.004, 0.08 * math.abs(target))
       if err and usesSprings[axle] and math.abs(err) > tol and settings.autoCorrect then
-        if cfg.method == "auto" and (target < 0 or (cfg.hubExtra[axle] or 0) > 0) then
-          local extra = math.min(math.max((cfg.hubExtra[axle] or 0) + err, 0), stance.HUB_EXTRA_MAX)
-          if math.abs(extra - (cfg.hubExtra[axle] or 0)) > 0.002 then
+        local had = cfg.hubExtra[axle] or 0
+        local lowering = cfg.method == "auto" and (target < 0 or had > 0)
+        local bigLift = cfg.method == "auto" and (target > stance.SPRING_LIFT_RANGE or had < 0)
+        if lowering or bigLift then
+          -- top up on the hub: up when lowering, down when lifting past the springs' range
+          local lo, hi = 0, stance.HUB_EXTRA_MAX
+          if bigLift then lo, hi = -stance.HUB_EXTRA_MAX, 0 end
+          local extra = math.min(math.max(had + err, lo), hi)
+          if math.abs(extra - had) > 0.002 then
             cfg.hubExtra[axle] = extra
             needsFix = true
           end

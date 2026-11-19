@@ -7,8 +7,12 @@ local stance = require("ge/extensions/stanceStudio/stance")
 
 -- objID -> report of the last spawn (which method each corner used)
 M.reports = {}
+-- objID -> stock size of the vehicle ({height, tireRadius}), measured before any stance edits
+M.sizes = {}
 
 local function onJbeamLoadingPhase1(loadingProgress, objID, vehicle, unifyJournal, vehicleConfig, vars)
+  local okSize, size = pcall(stance.measureSize, vehicle)
+  M.sizes[objID] = okSize and size or nil
   local raw = type(vehicleConfig) == "table" and vehicleConfig.stanceStudio or nil
   if type(raw) ~= "table" then
     M.reports[objID] = nil
@@ -29,7 +33,10 @@ local function onJbeamLoadingPhase1(loadingProgress, objID, vehicle, unifyJourna
   local ok, res = pcall(stance.apply, vehicle, cfg)
   if ok then
     M.reports[objID] = res
-    log('D', 'stanceStudio', 'stance applied to ' .. tostring(objID) .. ': ' .. tostring(res.wheelCount) .. ' wheels')
+    local reinforced = 0
+    for _, c in ipairs(res.corners or {}) do reinforced = reinforced + (c.reinforced or 0) end
+    log('D', 'stanceStudio', 'stance applied to ' .. tostring(objID) .. ': ' .. tostring(res.wheelCount) .. ' wheels, '
+      .. reinforced .. ' stretched hub beams reinforced')
   else
     M.reports[objID] = {error = tostring(res), corners = {}}
     log('E', 'stanceStudio', 'stance apply failed: ' .. tostring(res))
@@ -38,6 +45,7 @@ end
 
 local function onVehicleDestroyed(vid)
   M.reports[vid] = nil
+  M.sizes[vid] = nil
 end
 
 local function onExtensionLoaded()

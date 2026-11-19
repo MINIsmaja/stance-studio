@@ -1,6 +1,6 @@
 <template>
   <div class="ss-diagram">
-    <svg viewBox="0 0 360 200" preserveAspectRatio="xMidYMid meet">
+    <svg viewBox="0 0 360 240" preserveAspectRatio="xMidYMid meet">
       <!-- body (fixed): the wheels move relative to it, like looking at the car from the front -->
       <path :d="bodyPath" class="body" />
       <line :x1="fenderL" :x2="fenderL" y1="34" :y2="archBottom" class="fender" />
@@ -19,7 +19,7 @@
         </g>
       </g>
 
-      <text x="180" y="196" text-anchor="middle" class="caption">{{ title }} · seen from the front</text>
+      <text x="180" y="16" text-anchor="middle" class="caption">{{ title }} · seen from the front</text>
     </svg>
     <div class="ss-fit">
       <div><span>Camber</span><b>{{ fmtDeg(pending.camber) }}</b></div>
@@ -60,7 +60,9 @@ const moving = computed(() => ["camber", "offset", "rideHeight", "toe"].some(k =
 function place(v, sideSign) {
   // sideSign: -1 = wheel drawn on the left, +1 = right; negative camber leans the top inward
   const x = 180 + sideSign * (halfTrack.value + (v.offset || 0)) * scale.value
-  const y = centerStockY.value - (-(v.rideHeight || 0)) * scale.value
+  // positive ride height = lift = the wheel drops below the (fixed) body; kept inside the picture
+  const dy = Math.min(Math.max((v.rideHeight || 0) * scale.value, 2 + 2 * tr.value - groundStock), 236 - groundStock)
+  const y = centerStockY.value + dy
   const rot = sideSign * (v.camber || 0)
   return { x, y, rot }
 }
