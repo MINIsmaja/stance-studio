@@ -137,7 +137,8 @@ local function aim()
   local helper = getObjectByID(job.vehId)
   local data = helper and core_vehicle_manager.getVehicleData(job.vehId)
   if not helper or not data then return false end
-  local report = stanceStudio_jbeam.reports[job.vehId]
+  local jb = rawget(_G, "stanceStudio_jbeam")
+  local report = jb and jb.reports[job.vehId]
   local cam = rimCamera(helper, data.vdata, report)
   if not cam then return false end
   local rv = ensureView(helper)

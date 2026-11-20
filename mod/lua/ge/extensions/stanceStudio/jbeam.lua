@@ -4,16 +4,33 @@
 local M = {}
 
 local stance = require("ge/extensions/stanceStudio/stance")
+local fun = require("ge/extensions/stanceStudio/fun")
 
 -- objID -> report of the last spawn (which method each corner used)
 M.reports = {}
 -- objID -> stock size of the vehicle ({height, tireRadius}), measured before any stance edits
 M.sizes = {}
+-- objID -> result of the "Fun stuff" JBeam edits ({applied, missed, original})
+M.funReports = {}
 
 local function onJbeamLoadingPhase1(loadingProgress, objID, vehicle, unifyJournal, vehicleConfig, vars)
   local okSize, size = pcall(stance.measureSize, vehicle)
   M.sizes[objID] = okSize and size or nil
   local raw = type(vehicleConfig) == "table" and vehicleConfig.stanceStudio or nil
+
+  -- "Fun stuff" JBeam edits, on top of the parts and before the stance (never on the photo car)
+  local rawFun = type(vehicleConfig) == "table" and vehicleConfig.stanceStudioFun or nil
+  if type(rawFun) == "table" and not (type(raw) == "table" and type(raw.photo) == "table") then
+    local ok, res = pcall(fun.apply, vehicle, rawFun)
+    M.funReports[objID] = ok and res or {applied = 0, missed = {}, original = {}, error = tostring(res)}
+    if ok then
+      log('D', 'stanceStudio', 'JBeam edits on ' .. tostring(objID) .. ': ' .. res.applied .. ' applied, ' .. #res.missed .. ' did not match')
+    else
+      log('E', 'stanceStudio', 'JBeam edits failed: ' .. tostring(res))
+    end
+  else
+    M.funReports[objID] = nil
+  end
   if type(raw) ~= "table" then
     M.reports[objID] = nil
     return
@@ -46,6 +63,7 @@ end
 local function onVehicleDestroyed(vid)
   M.reports[vid] = nil
   M.sizes[vid] = nil
+  M.funReports[vid] = nil
 end
 
 local function onExtensionLoaded()

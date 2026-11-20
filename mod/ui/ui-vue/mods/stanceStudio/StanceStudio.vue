@@ -1,6 +1,6 @@
 <template>
   <div class="ss-root">
-    <aside class="ss-panel" :class="{ wide: tab === 'wheels' || tab === 'performance' }">
+    <aside class="ss-panel" :class="{ wide: activeTab === 'wheels' || activeTab === 'performance' || activeTab === 'fun' }">
       <header class="ss-header">
         <div class="ss-title">
           <div class="ss-brand">STANCE <span>STUDIO</span></div>
@@ -10,17 +10,22 @@
       </header>
 
       <nav class="ss-tabs">
-        <button v-for="t in tabs" :key="t.id" :class="{ active: tab === t.id }" @click="tab = t.id">{{ t.label }}</button>
+        <button v-for="t in tabs" :key="t.id" :class="{ active: activeTab === t.id, fun: t.id === 'fun' }" @click="tab = t.id">{{ t.label }}</button>
       </nav>
 
+      <div v-if="store.state?.hookMissing" class="ss-broken">
+        Part of Stance Studio did not load, so stance and Fun changes are off. Restart BeamNG to fix it
+        (this happens when the mod zip is replaced while the game is running).
+      </div>
       <div v-if="store.loading" class="ss-empty">Loading…</div>
       <div v-else-if="!store.state?.vehicle" class="ss-empty">Get in a vehicle to start tuning.</div>
       <div v-else class="ss-content">
-        <StanceTab v-if="tab === 'stance'" />
-        <WheelsTab v-else-if="tab === 'wheels'" />
-        <PerformanceTab v-else-if="tab === 'performance'" />
-        <TuningTab v-else-if="tab === 'tuning'" />
-        <SettingsTab v-else-if="tab === 'settings'" />
+        <StanceTab v-if="activeTab === 'stance'" />
+        <WheelsTab v-else-if="activeTab === 'wheels'" />
+        <PerformanceTab v-else-if="activeTab === 'performance'" />
+        <TuningTab v-else-if="activeTab === 'tuning'" />
+        <FunTab v-else-if="activeTab === 'fun'" />
+        <SettingsTab v-else-if="activeTab === 'settings'" />
       </div>
 
       <transition name="ss-fade">
@@ -41,19 +46,25 @@ import WheelsTab from "./tabs/WheelsTab.vue"
 import PerformanceTab from "./tabs/PerformanceTab.vue"
 import TuningTab from "./tabs/TuningTab.vue"
 import SettingsTab from "./tabs/SettingsTab.vue"
+import FunTab from "./tabs/FunTab.vue"
 
-const tabs = [
+const allTabs = [
   { id: "stance", label: "Stance" },
   { id: "wheels", label: "Wheels" },
   { id: "performance", label: "Performance" },
   { id: "tuning", label: "Tuning" },
+  { id: "fun", label: "Fun" },
   { id: "settings", label: "Settings" },
 ]
+// the Fun tab is the easter egg at the bottom of Settings
+const funOn = computed(() => store.state?.settings?.funStuff === true)
+const tabs = computed(() => allTabs.filter(t => t.id !== "fun" || funOn.value))
 
 let savedTab = "stance"
 try { savedTab = localStorage.getItem("stanceStudio.tab") || "stance" } catch (e) { /* storage off */ }
-const tab = ref(tabs.some(t => t.id === savedTab) ? savedTab : "stance")
-const remember = () => { try { localStorage.setItem("stanceStudio.tab", tab.value) } catch (e) { /* storage off */ } }
+const tab = ref(allTabs.some(t => t.id === savedTab) ? savedTab : "stance")
+const activeTab = computed(() => (tab.value === "fun" && !funOn.value ? "stance" : tab.value))
+const remember = () => { try { localStorage.setItem("stanceStudio.tab", activeTab.value) } catch (e) { /* storage off */ } }
 
 const vehicleName = computed(() => store.state?.vehicle?.name || "")
 const keyLabel = computed(() => controlLabel(store.state?.keybind))
@@ -165,12 +176,17 @@ onUnmounted(() => {
     border: 0;
     background: transparent;
     color: rgba(255, 255, 255, 0.6);
-    padding: 0.55rem 0.2rem;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 0.55rem 0.15rem;
     border-radius: 0.45rem;
     cursor: pointer;
-    font-size: 0.88rem;
+    font-size: 0.86rem;
     font-weight: 600;
     &:hover { background: rgba(255, 255, 255, 0.06); color: #fff; }
+    &.fun:not(.active) { color: #f0abfc; }
     &.active { background: var(--bng-orange, #ff6600); color: #fff; }
   }
 }
@@ -183,6 +199,15 @@ onUnmounted(() => {
   &::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 3px; }
 }
 .ss-empty { padding: 2rem 1.2rem; opacity: 0.7; }
+.ss-broken {
+  margin: 0.6rem 0.9rem 0;
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.5rem;
+  background: rgba(248, 113, 113, 0.16);
+  color: #fecaca;
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
 
 .ss-notice {
   position: absolute;
