@@ -86,16 +86,6 @@
       </div>
       <div class="ss-muted ss-note">Each rim is photographed on its own, face-on, on a temporary copy of your car parked behind you, so you can keep tuning. Photos are saved under screenshots/stanceStudio/rims in your user folder and shared between cars that use the same wheels.</div>
     </div>
-
-    <!-- easter egg: only found by scrolling all the way down -->
-    <div class="ss-egg">
-      <div class="ss-muted ss-egg-hint">{{ s.funStuff ? "" : "psst… you scrolled all the way down" }}</div>
-      <label class="ss-toggle ss-egg-toggle">
-        <input type="checkbox" :checked="s.funStuff" @change="e => set({ funStuff: e.target.checked })" />
-        <span>Fun stuff</span>
-      </label>
-      <div v-if="s.funStuff" class="ss-muted ss-note">The Fun tab is on. It has a slider for every JBeam value of your car: engine torque and rpm, turbo boost, gears, brakes, tires, weight, beam strength and everything else, without editing any game files.</div>
-    </div>
   </div>
 </template>
 
@@ -219,9 +209,6 @@ onUnmounted(stopListening)
 </script>
 
 <style lang="scss" scoped>
-.ss-egg { margin-top: 26rem; padding: 0.8rem 0 0.4rem; border-top: 1px dashed rgba(255, 255, 255, 0.1); }
-.ss-egg-hint { font-size: 0.72rem; font-style: italic; margin-bottom: 0.45rem; }
-.ss-egg-toggle span { color: #f0abfc; font-weight: 700; }
 .ss-key-row { display: flex; gap: 0.45rem; align-items: center; }
 .ss-keycap {
   flex: 1;

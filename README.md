@@ -28,12 +28,6 @@ performance parts in one place, with a key you choose.
   so on, ranked by estimated power. Each part shows how much horsepower you gain (`+43 hp`) or
   lose (`−58 hp`) compared to what's on your car now, using the game's own engine math.
 - **Tuning.** The car's own tuning settings as sliders, with search.
-- **Fun stuff (easter egg).** Scroll to the very bottom of Settings and turn on **Fun stuff**. A Fun
-  tab appears with a slider for every JBeam value of your car: engine torque and rpm, turbo boost,
-  gear ratios, brakes, tires, node weights, beam strength and everything else. Sliders go from ×0.01
-  to ×1000 of stock, and the box takes any number, `inf` or `x10` (type `x3000` on the torque curve
-  for a million horsepower). No game files are touched: the changes are saved with the car's config,
-  and Reset everything puts the car back to stock.
 - **Your key.** Opens with **Alt+E** by default. Change it in the menu's Settings tab or under
   Options › Controls ("Stance Studio: open / close"). The menu is also in the pause menu under Mods.
 
