@@ -28,6 +28,17 @@ performance parts in one place, with a key you choose.
   so on, ranked by estimated power. Each part shows how much horsepower you gain (`+43 hp`) or
   lose (`−58 hp`) compared to what's on your car now, using the game's own engine math.
 - **Tuning.** The car's own tuning settings as sliders, with search.
+- **Fun stuff (easter egg).** Scroll to the very bottom of Settings and turn on **Fun stuff** for a
+  Fun tab, the JBeam edits people make for fun, right in the game:
+  - **Engine:** an Indestructible engine toggle, no rev limiter, max RPM, and the torque curve as an
+    RPM / torque table you can type in (with a 1,000,000 hp button). Turbo or supercharger boost in
+    psi, pops & bangs, and the nitrous shot.
+  - **Car:** weight, tire grip and brake power sliders, and an Unbreakable or Paper car toggle.
+  - **World:** gravity (Earth, Moon, Mars, Jupiter, zero, upside down or custom) and slow motion.
+  - **Advanced:** every other JBeam value of the car, with a slider.
+
+  No game files are touched: the car changes are saved with its config, and Reset car to stock
+  undoes them.
 - **Your key.** Opens with **Alt+E** by default. Change it in the menu's Settings tab or under
   Options › Controls ("Stance Studio: open / close"). The menu is also in the pause menu under Mods.
 

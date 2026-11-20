@@ -5,6 +5,7 @@ local M = {}
 M.dependencies = {"stanceStudio_jbeam", "stanceStudio_preview", "stanceStudio_parts", "stanceStudio_photos"}
 
 local stance = require("ge/extensions/stanceStudio/stance")
+local fun = require("ge/extensions/stanceStudio/fun")
 
 local ACTION = "stanceStudio_toggle"
 local ROUTE = "stanceStudio"
@@ -26,6 +27,7 @@ local defaultSettings = {
   photoPass = "auto",      -- "auto" (background helper car), "ask" or "off"
   gains = {},              -- learned ride-height gain per vehicle model
   hasOpened = false,       -- the "press Alt + E" hint shows on every map load until the menu was opened once
+  funStuff = false,        -- easter egg at the bottom of Settings: shows the Fun tab (edit any JBeam value)
 }
 
 local settings = nil
@@ -38,6 +40,11 @@ local queryPower          -- defined below
 local welcomeTimer = nil  -- seconds until the first-time "press Alt + E" hint
 
 -- MARK: helpers
+
+-- the jbeam hook extension (stance, sizes, JBeam edits). If it failed to load (a broken install, or
+-- a mod zip swapped under a running game), the menu still opens and says so instead of crashing.
+local NO_HOOK = {reports = {}, sizes = {}, funReports = {}}
+local function hook() return rawget(_G, "stanceStudio_jbeam") or NO_HOOK end
 
 local function deepMerge(dst, src)
   for k, v in pairs(src) do
@@ -260,9 +267,10 @@ function M.getState()
     configName = vehData.config and vehData.config.partConfigFilename,
   }
   state.stance = cfg
-  state.report = stanceStudio_jbeam.reports[vehId]
+  state.report = hook().reports[vehId]
   state.wheels = wheelInfo(vehId, vehData.vdata)
-  state.size = stanceStudio_jbeam.sizes[vehId]
+  state.size = hook().sizes[vehId]
+  state.hookMissing = rawget(_G, "stanceStudio_jbeam") == nil or nil
   state.measured = m
   state.actual = actual
   state.busy = pendingMeasure ~= nil
@@ -334,7 +342,7 @@ local function finishMeasure()
   if not veh or vehId ~= p.vehId then return end
   local m = measure(veh, vehData.vdata)
   local cfg = currentStance(vehData)
-  local report = stanceStudio_jbeam.reports[vehId] or {}
+  local report = hook().reports[vehId] or {}
   local usesSprings = {}
   for _, c in ipairs(report.corners or {}) do
     if c.method == "springs" or c.method == "springs+hub" then usesSprings[c.axle] = true end
@@ -587,6 +595,102 @@ function M.onUiClosed()
   stanceStudio_preview.clear()
   M.releaseFocus()
   stanceStudio_photos.cancel()
+end
+
+-- MARK: fun stuff (edit any JBeam value; the edits live in config.stanceStudioFun)
+
+local function funOf(vehData)
+  local f = vehData and vehData.config and vehData.config.stanceStudioFun
+  return type(f) == "table" and f or nil
+end
+
+function M.funGetSections()
+  local veh, vehData, vehId = getVeh()
+  if not veh or not vehData then return nil end
+  local f = funOf(vehData)
+  local report = hook().funReports[vehId]
+  local ok, sections = pcall(fun.describe, vehData.vdata, f, report)
+  if not ok then log('E', 'stanceStudio', 'reading JBeam sections failed: ' .. tostring(sections)) sections = {} end
+  return {
+    sections = sections,
+    edits = f and f.edits or {},
+    applied = report and report.applied or 0,
+    missed = report and report.missed or {},
+    error = report and report.error or nil,
+    power = M.power[vehId],
+    spawnCount = spawnCount,
+  }
+end
+
+-- the simple Fun menu: engines (curve, rpm, boost, pops, nitrous), weight, and the world settings
+function M.funQuick()
+  local veh, vehData, vehId = getVeh()
+  if not veh or not vehData then return nil end
+  local f = funOf(vehData)
+  local report = hook().funReports[vehId]
+  local ok, info = pcall(fun.quickInfo, vehData.vdata, f, report)
+  if not ok then log('E', 'stanceStudio', 'reading the Fun menu failed: ' .. tostring(info)) info = {engines = {}, car = {}} end
+  info.edits = f and f.edits or {}
+  info.missed = report and report.missed or {}
+  info.power = M.power[vehId]
+  info.world = M.funWorld()
+  info.spawnCount = spawnCount
+  return info
+end
+
+-- MARK: world (instant, the whole level, not saved with the car)
+
+function M.funWorld()
+  local g = core_environment and core_environment.getGravity and core_environment.getGravity() or -9.81
+  local speed = simTimeAuthority and simTimeAuthority.get and simTimeAuthority.get() or 1
+  return {gravity = tonumber(g) or -9.81, simSpeed = tonumber(speed) or 1}
+end
+
+-- gravity in m/s², the game's sign: -9.81 is Earth, +9.81 pulls you up
+function M.funSetGravity(g)
+  if careerActive() then toast("warning", "Stance Studio is disabled in career mode") return end
+  g = tonumber(g)
+  if not g or g ~= g or not core_environment then return end
+  core_environment.setGravity(math.min(math.max(g, -300), 300))
+end
+
+-- 1 = real time, 0.5 = half speed
+function M.funSetSimSpeed(s)
+  if careerActive() then toast("warning", "Stance Studio is disabled in career mode") return end
+  s = tonumber(s)
+  if not s or s ~= s or not simTimeAuthority then return end
+  simTimeAuthority.set(math.min(math.max(s, 0.01), 4))
+end
+
+function M.funGetSection(name)
+  local veh, vehData, vehId = getVeh()
+  if not veh or not vehData then return nil end
+  local ok, res = pcall(fun.describeSection, vehData.vdata, name, funOf(vehData), hook().funReports[vehId])
+  if not ok then log('E', 'stanceStudio', 'reading JBeam section ' .. tostring(name) .. ' failed: ' .. tostring(res)) return nil end
+  return res
+end
+
+function M.funSearch(query)
+  local veh, vehData, vehId = getVeh()
+  if not veh or not vehData then return {} end
+  local ok, res = pcall(fun.search, vehData.vdata, query, funOf(vehData), hook().funReports[vehId])
+  return ok and res or {}
+end
+
+-- edits: list of edits from the UI (an empty list resets the car to its stock JBeam)
+function M.funApply(edits)
+  if careerActive() then toast("warning", "Stance Studio is disabled in career mode") return end
+  local veh, vehData = getVeh()
+  if not veh or not vehData then return end
+  local clean = fun.normalizeEdits(edits)
+  local n = 0
+  for _ in pairs(clean) do n = n + 1 end
+  stanceStudio_preview.clear()
+  -- set it directly first: setConfig merges tables, which would keep edits that were removed
+  vehData.config.stanceStudioFun = n > 0 and {v = fun.VERSION, edits = clean} or nil
+  core_vehicle_partmgmt.setConfig({stanceStudioFun = vehData.config.stanceStudioFun}, true)
+  log('I', 'stanceStudio', 'JBeam edits: ' .. n)
+  pushState()
 end
 
 -- MARK: settings and keybind
