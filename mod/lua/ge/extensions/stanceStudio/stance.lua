@@ -220,19 +220,41 @@ local function isBrakeLike(fb)
     or s:find("disc", 1, true) or s:find("drum", 1, true)
 end
 
-local function findFlexbodies(vehicle, wheelGroups)
+-- every group that some node or some wheel row uses (wheel rows name the groups of the hub and
+-- tire nodes the game generates after this hook)
+local function usedGroups(vehicle)
+  local used = {}
+  for _, node in pairs(vehicle.nodes or {}) do
+    if type(node) == "table" then addGroups(used, node.group) end
+  end
+  for _, section in ipairs(WHEEL_SECTIONS) do
+    for _, row in pairs(vehicle[section] or {}) do
+      if type(row) == "table" then
+        addGroups(used, row.group)
+        addGroups(used, row.hubGroup)
+        addGroups(used, row.hubcapGroup)
+      end
+    end
+  end
+  return used
+end
+
+-- Meshes that move with a wheel: at least one of their groups is the wheel's, and each other group
+-- is the wheel's too or one that nothing uses. Meshes often name a group no node has (the MD's inner
+-- dual rims are bound to "wheelhub_R1R", but its nodes are in "wheelhub_R1RR"); such a group binds
+-- the mesh to nothing, so it does not stop the mesh from following the wheel.
+local function findFlexbodies(vehicle, wheelGroups, used)
   local list = {}
   if type(vehicle.flexbodies) ~= "table" or not next(wheelGroups) then return list end
   for _, fb in pairs(vehicle.flexbodies) do
     if type(fb) == "table" then
       local groups = groupsOf(fb["[group]:"] or fb.group)
-      if #groups > 0 then
-        local all = true
-        for _, g in ipairs(groups) do
-          if not wheelGroups[g] then all = false; break end
-        end
-        if all then list[#list + 1] = fb end
+      local mine, ok = false, #groups > 0
+      for _, g in ipairs(groups) do
+        if wheelGroups[g] then mine = true
+        elseif used[g] then ok = false; break end
       end
+      if ok and mine then list[#list + 1] = fb end
     end
   end
   return list
@@ -490,18 +512,54 @@ function M.apply(vehicle, cfg)
 
   local adjacency = nil
   local touched = {} -- nodes are shared by twin wheels (duallies), move each node once
+  local movedFlex = {} -- same for meshes
+  local unitSplit = {} -- ride height split of each dual pair, decided by its first wheel
 
-  for _, w in ipairs(wheels) do
+  -- assemblies up front, from the stock positions. Wheels that share an axle node (dual rear
+  -- wheels) are one unit: their meshes are picked with the groups of all of them, because some
+  -- meshes span the pair (split rim barrels are bound to both wheels of a dual).
+  local used = usedGroups(vehicle)
+  local assemblies, unitOf = {}, {}
+  local byNode = {}
+  for i, w in ipairs(wheels) do
+    local set, list, groups = findAssembly(vehicle, w)
+    assemblies[i] = {set = set, list = list, groups = groups}
+    unitOf[i] = i
+    for _, id in ipairs({w.row.node1, w.row.node2}) do
+      if byNode[id] then
+        local u = byNode[id]
+        while unitOf[u] ~= u do u = unitOf[u] end
+        local me = i
+        while unitOf[me] ~= me do me = unitOf[me] end
+        if u ~= me then unitOf[me] = u end
+      else
+        byNode[id] = i
+      end
+    end
+  end
+  local unitGroups = {}
+  for i in ipairs(wheels) do
+    local u = i
+    while unitOf[u] ~= u do u = unitOf[u] end
+    unitGroups[u] = unitGroups[u] or {}
+    for g in pairs(assemblies[i].groups) do unitGroups[u][g] = true end
+    assemblies[i].unit = u
+  end
+
+  for i, w in ipairs(wheels) do
     local a = cfg[w.axle]
     local corner = {axle = w.axle, side = w.side, name = w.name, method = "none", springs = 0, dampers = 0}
     report.corners[#report.corners + 1] = corner
     if a and w.side ~= 0 then
-      local assemblySet, assemblyList, wheelGroups = findAssembly(vehicle, w)
+      local assemblySet, assemblyList = assemblies[i].set, assemblies[i].list
       local moveNodes = {}
       for _, node in ipairs(assemblyList) do
         if not touched[node] then touched[node] = true; moveNodes[#moveNodes + 1] = node end
       end
-      local flex = findFlexbodies(vehicle, wheelGroups)
+      local flex = {}
+      for _, fb in ipairs(findFlexbodies(vehicle, unitGroups[assemblies[i].unit], used)) do
+        if not movedFlex[fb] then movedFlex[fb] = true; flex[#flex + 1] = fb end
+      end
       local flexOffset = {}
       for _, fb in ipairs(flex) do
         if not isBrakeLike(fb) then flexOffset[#flexOffset + 1] = fb end
@@ -518,10 +576,20 @@ function M.apply(vehicle, cfg)
         local springs, dampers, how = findSuspension(vehicle, adjacency, assemblySet, w, wheels)
         corner.springs, corner.dampers, corner.found = #springs, #dampers, how
         if wantsHeight then
-          local springPart, hubUp = M.splitRideHeight(cfg, w.axle, #springs > 0)
+          -- the second wheel of a dual shares the first one's springs (they went to the first),
+          -- so it takes over the first wheel's split instead of falling back to hub-only
+          local unit = assemblies[i].unit
+          local split = unitSplit[unit]
+          local springPart, hubUp
+          if split then
+            springPart, hubUp = split.springPart, split.hubUp
+          else
+            springPart, hubUp = M.splitRideHeight(cfg, w.axle, #springs > 0)
+            unitSplit[unit] = {springPart = springPart, hubUp = hubUp}
+          end
           dropZ = hubUp
           corner.springPart, corner.hubPart = springPart, hubUp
-          if abs(springPart) > 1e-5 then
+          if abs(springPart) > 1e-5 and not split then
             local gain = cfg.gain[w.axle] or 1
             for _, s in ipairs(springs) do
               local beam = s.beam

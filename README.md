@@ -54,3 +54,8 @@ Stance settings are saved with the vehicle config, so saved `.pc` files keep the
 
 `mod/` is the unpacked mod. `./build.sh` zips it into `dist/stancestudio.zip`.
 For development, put a copy of `mod/` in `mods/unpacked/stancestudio/` in your BeamNG user folder.
+
+`tests/run.sh` runs the offline tests against `mod/`. It needs `luajit` and the game installed; set
+`G` to the game folder if it is not in the default Steam location on Linux.
+`tests/tools/audit_wheel_meshes.py` checks every vanilla vehicle for wheel meshes that would not
+follow their wheel.
