@@ -5,6 +5,7 @@ local M = {}
 
 local stance = require("ge/extensions/stanceStudio/stance")
 local fun = require("ge/extensions/stanceStudio/fun")
+local share = require("ge/extensions/stanceStudio/share")
 
 -- objID -> report of the last spawn (which method each corner used)
 M.reports = {}
@@ -16,10 +17,24 @@ M.funReports = {}
 local function onJbeamLoadingPhase1(loadingProgress, objID, vehicle, unifyJournal, vehicleConfig, vars)
   local okSize, size = pcall(stance.measureSize, vehicle)
   M.sizes[objID] = okSize and size or nil
-  local raw = type(vehicleConfig) == "table" and vehicleConfig.stanceStudio or nil
+  -- (false = "none" on purpose, see mp.lua: keep it apart from a missing key)
+  local raw, rawFun = nil, nil
+  if type(vehicleConfig) == "table" then raw, rawFun = vehicleConfig.stanceStudio, vehicleConfig.stanceStudioFun end
+
+  -- a friend's car in Tandem arrives with parts, tuning values and paint only: the stance and the
+  -- simple Fun edits come as tuning values then (see share.lua). The keys win when they are there.
+  if (raw == nil or rawFun == nil) and type(vehicleConfig) == "table" and type(vehicleConfig.vars) == "table" then
+    local okE, engines = pcall(fun.engineSections, vehicle)
+    local ok, s, f = pcall(share.read, vehicleConfig.vars, okE and engines or {})
+    if ok then
+      if raw == nil and s then raw = s end
+      if rawFun == nil and f then rawFun = f end
+    else
+      log('E', 'stanceStudio', 'reading the stance from tuning values failed: ' .. tostring(s))
+    end
+  end
 
   -- "Fun stuff" JBeam edits, on top of the parts and before the stance (never on the photo car)
-  local rawFun = type(vehicleConfig) == "table" and vehicleConfig.stanceStudioFun or nil
   if type(rawFun) == "table" and not (type(raw) == "table" and type(raw.photo) == "table") then
     local ok, res = pcall(fun.apply, vehicle, rawFun)
     M.funReports[objID] = ok and res or {applied = 0, missed = {}, original = {}, error = tostring(res)}

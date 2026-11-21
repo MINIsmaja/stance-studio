@@ -5,8 +5,11 @@
         <div class="ss-title">
           <div class="ss-brand">STANCE <span>STUDIO</span></div>
           <div class="ss-car">{{ vehicleName }}</div>
-          <div v-if="store.state?.multiplayer" class="ss-mp" title="Your stance, wheels, parts, tuning and Fun edits are sent with your car. Players who have Stance Studio (the server hands it out) see them.">
+          <div v-if="store.state?.multiplayer === 'beammp'" class="ss-mp" title="Your stance, wheels, parts, tuning and Fun edits are sent with your car. Players who have Stance Studio (the server hands it out) see them.">
             Multiplayer · your changes sync to the other players
+          </div>
+          <div v-else-if="store.state?.multiplayer === 'tandem'" class="ss-mp" title="Friends in this session see your stance, wheels, parts, tuning and the Fun toggles and sliders. The torque curve and Advanced edits only change your own game. Stance Studio has to be one of the session's shared mods.">
+            Tandem · friends see your stance
           </div>
         </div>
         <button class="ss-close" title="Close (Esc)" @click="close">✕</button>

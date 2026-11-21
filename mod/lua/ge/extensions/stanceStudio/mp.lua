@@ -1,7 +1,10 @@
--- Stance Studio: BeamMP (multiplayer) support. Everything here is optional: without BeamMP every
--- check says "singleplayer" and nothing changes.
+-- Stance Studio: multiplayer support (BeamMP and Tandem). Everything here is optional: without them
+-- every check says "singleplayer" and nothing changes.
 --
--- How a car's stance reaches the other players: BeamMP sends your car's whole config (with
+-- Tandem (the BeamNG Friends launcher) sends a car as parts, tuning values and paint only; the
+-- stance rides along as tuning values there, see share.lua.
+--
+-- BeamMP: how a car's stance reaches the other players: BeamMP sends your car's whole config (with
 -- config.stanceStudio and config.stanceStudioFun in it) when you spawn it and ~15 s after every
 -- respawn, and every player who has this mod (the server hands it out from Resources/Client)
 -- spawns your car with it, so the jbeam hook builds the same stanced car on their screen.
@@ -14,17 +17,32 @@ local M = {}
 M.KEYS = {"stanceStudio", "stanceStudioFun"}
 
 -- true while connected to a BeamMP server
-function M.active()
+function M.beammp()
   local net = rawget(_G, "MPCoreNetwork")
   if not (type(net) == "table" and type(net.isMPSession) == "function") then return false end
   local ok, res = pcall(net.isMPSession)
   return ok and res == true
 end
 
--- true for another player's car on your screen. A car BeamMP doesn't know yet (your own car while
+-- true when the game was started by Tandem (its bridge runs only in Tandem's own game profile)
+function M.tandem()
+  return rawget(_G, "beamngFriendsBridge") ~= nil
+end
+
+-- "beammp", "tandem" or nil (singleplayer)
+function M.kind()
+  if M.beammp() then return "beammp" end
+  if M.tandem() then return "tandem" end
+  return nil
+end
+
+-- true in any multiplayer session
+function M.active() return M.kind() ~= nil end
+
+-- BeamMP: true for another player's car on your screen. A car BeamMP doesn't know yet (your own car while
 -- it spawns, or someone's car that is still loading) counts as not remote.
 function M.isRemote(vid)
-  if not vid or not M.active() then return false end
+  if not vid or not M.beammp() then return false end
   local mpv = rawget(_G, "MPVehicleGE")
   if not (type(mpv) == "table" and type(mpv.isOwn) == "function") then return false end
   if type(mpv.getServerVehicleID) == "function" then
@@ -35,9 +53,9 @@ function M.isRemote(vid)
   return ok and own == false
 end
 
--- true for your own car once BeamMP has registered it (from the second spawn on)
+-- BeamMP: true for your own car once BeamMP has registered it (from the second spawn on)
 function M.isOwn(vid)
-  if not vid or not M.active() then return false end
+  if not vid or not M.beammp() then return false end
   local mpv = rawget(_G, "MPVehicleGE")
   if not (type(mpv) == "table" and type(mpv.isOwn) == "function") then return false end
   local ok, own = pcall(mpv.isOwn, vid)

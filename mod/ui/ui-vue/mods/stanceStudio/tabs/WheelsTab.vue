@@ -21,7 +21,7 @@
         </div>
         <div class="ss-progress"><div :style="{ width: photoPct + '%' }"></div></div>
       </div>
-      <div v-else-if="missingPhotos > 0 && s.photoPass !== 'off' && store.state?.multiplayer" class="ss-photo-bar">
+      <div v-else-if="missingPhotos > 0 && s.photoPass !== 'off' && store.state?.multiplayer === 'beammp'" class="ss-photo-bar">
         <div class="ss-muted">
           📷 {{ missingPhotos }} rims have no photo yet. Rim photos are taken in singleplayer: here the photo car
           would show up for everyone on the server. Photos you already took show up here too.
@@ -146,7 +146,7 @@ async function load() {
   if (!hasSplit.value) target.value = byAxle.value.B ? "B" : (axles.value[0]?.axle || "F")
   const model = store.state?.vehicle?.model
   if ((s.value.photoPass || "auto") === "auto" && missingPhotos.value > 0 && !photos.value.running && model && !autoStarted.has(model)
-    && !store.state?.multiplayer) {
+    && store.state?.multiplayer !== 'beammp') {
     autoStarted.add(model)
     takePhotos()
   }

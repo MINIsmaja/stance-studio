@@ -178,7 +178,7 @@ check("own car: false for both keys", configs[10].config.stanceStudio == false a
 core.onVehicleSpawned(20)
 check("someone else's car: config untouched", next(configs[20].config) == nil)
 local st = core.getState()
-check("state: multiplayer, own car", st.multiplayer == true and st.vehicle and not st.vehicle.remote)
+check("state: multiplayer, own car", st.multiplayer == "beammp" and st.vehicle and not st.vehicle.remote)
 
 -- sitting in Bob's car
 playerId = 20
@@ -196,5 +196,38 @@ check("menu doesn't open in Bob's car", navigated == nil)
 playerId = 10
 core.open()
 check("menu opens in your own car", navigated == "stanceStudio")
+
+-- MARK: 4) Tandem (its bridge extension is loaded, no BeamMP session)
+session = false
+beammp(false)
+beamngFriendsBridge = {}
+check("Tandem is multiplayer", mp.tandem() and mp.active() and mp.kind() == "tandem" and not mp.beammp())
+st = core.getState()
+check("state says tandem", st.multiplayer == "tandem")
+toasts = {}
+core.funSetGravity(-1.62)
+check("Tandem: no gravity", gravity == -9.81 and #toasts == 1)
+-- your car: core keeps the tuning-value copy (what Tandem sends) in step after every spawn
+configs[10].config = {vars = {["$tirepressure_F"] = 30}, stanceStudio = {F = {camber = -2}}, stanceStudioFun = false}
+core.onVehicleSpawned(10)
+local vars = configs[10].config.vars
+check("own car: stance copied into tuning values", vars["$stanceStudio_F_camber"] == -2 and vars["$tirepressure_F"] == 30)
+-- a friend's copy (Tandem spawns it with tuning values only): left as it came
+configs[20].config = {vars = {["$stanceStudio_F_camber"] = -5}}
+core.onVehicleSpawned(20)
+check("friend's copy: tuning values untouched", configs[20].config.vars["$stanceStudio_F_camber"] == -5 and configs[20].config.stanceStudio == nil)
+-- applying a stance writes the copy before the respawn
+playerId = 10
+before = #setConfigCalls
+core.applyStance({F = {camber = -3}})
+local sent = setConfigCalls[#setConfigCalls]
+check("apply sends the copy with the config", #setConfigCalls == before + 1 and sent.vars and sent.vars["$stanceStudio_F_camber"] == -3)
+core.funApply({{kind = "quick", name = "weight", scale = 3}})
+sent = setConfigCalls[#setConfigCalls]
+check("Fun edits too", sent.vars and sent.vars["$stanceStudio_q_weight_0"] == 3 and sent.vars["$stanceStudio_F_camber"] == -3)
+core.funApply({})
+sent = setConfigCalls[#setConfigCalls]
+check("and their reset", sent.vars and sent.vars["$stanceStudio_q_weight_0"] == nil and sent.stanceStudioFun == false)
+beamngFriendsBridge = nil
 
 print(fails == 0 and "ALL PASSED" or (fails .. " FAILED"))

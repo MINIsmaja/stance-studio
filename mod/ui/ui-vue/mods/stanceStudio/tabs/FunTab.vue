@@ -16,6 +16,10 @@
       <button class="ss-btn ss-small" @click="dropMissed">Remove {{ missed.length === 1 ? "it" : "them" }}</button>
     </div>
 
+    <div v-if="store.state?.multiplayer === 'tandem'" class="ss-muted fun-mp-note fun-tandem">
+      In Tandem your friends get the toggles and sliders here. The torque curve and Advanced edits only change your
+      own game.
+    </div>
     <div v-if="loading" class="ss-muted">Reading this car…</div>
     <template v-else>
       <!-- ENGINE -->
@@ -80,8 +84,7 @@
         <div class="fun-card-title">World <span class="ss-muted fun-card-note">changes right away, the whole map, not saved with the car</span></div>
         <div v-if="info.world?.multiplayer" class="ss-muted fun-mp-note">
           Gravity and speed of time are off in multiplayer: they would only change your game, and the other cars
-          on your screen would fight the server. Everything above is sent with your car, so other players with
-          Stance Studio see it too.
+          on your screen would fight the sync.
         </div>
         <template v-else>
         <div class="fun-label">Gravity <span class="ss-muted">{{ gText }}</span></div>
@@ -320,6 +323,7 @@ onMounted(load)
 .fun-card-title { font-weight: 800; font-size: 0.95rem; margin-bottom: 0.55rem; letter-spacing: 0.02em; }
 .fun-card-note { font-weight: 400; font-size: 0.72rem; margin-left: 0.3rem; }
 .fun-mp-note { font-size: 0.78rem; line-height: 1.4; }
+.fun-tandem { margin: 0.2rem 0 0.6rem; }
 .fun-toggle {
   display: flex;
   gap: 0.6rem;

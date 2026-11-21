@@ -52,6 +52,19 @@ Stance settings are saved with the vehicle config, so saved `.pc` files keep the
    - Linux: `~/.local/share/BeamNG/BeamNG.drive/current/mods/`
 3. Start the game, load a freeroam map and press **Alt+E**.
 
+## Multiplayer (Tandem)
+
+Tandem only uses the session's shared mods, so the host shares it:
+
+1. In Tandem, tick `stancestudio.zip` in the mods you share. Tandem asks again after every update
+   (a new version is a new file to it).
+2. Start the session. Friends get the mod with the session. Open the menu with your key as usual.
+
+Tandem sends your car to friends as parts, tuning and paint only, so Stance Studio also writes the
+stance into the car's tuning values (names starting with `$stanceStudio_`, which the game ignores).
+Friends see your stance, wheels, parts, tuning and the Fun toggles and sliders. The torque curve and
+Advanced edits only change your own game. Gravity and speed of time are off in a session.
+
 ## Multiplayer (BeamMP)
 
 BeamMP turns off every mod the server doesn't have, so the server has to hand it out:
@@ -70,7 +83,7 @@ indestructible engine, weight, grip and the rest). On a server some things work 
 
 ## Notes
 
-- Made for BeamNG.drive 0.40, singleplayer and BeamMP. It is turned off in career mode.
+- Made for BeamNG.drive 0.40, singleplayer, Tandem and BeamMP. It is turned off in career mode.
 - Wheel photos are taken once per rim: the first time you open the Wheels tab, a temporary copy of
   your car parks behind you and each rim is photographed on its own. It takes about a second per
   rim, keep the menu open until it is done. The photos are saved in

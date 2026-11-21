@@ -239,7 +239,8 @@ end
 function M.start(onlyMissing)
   if job then return {ok = false, reason = "running"} end
   -- the helper car would be sent to the server like any other car: everyone would see it
-  if mp.active() then return {ok = false, reason = "multiplayer"} end
+  -- (BeamMP only: Tandem sends just the car you drive)
+  if mp.beammp() then return {ok = false, reason = "multiplayer"} end
   local veh, vehData = getVeh()
   if not veh then log('I', 'stanceStudio', 'photo pass: no vehicle'); return {ok = false, reason = "novehicle"} end
   local wheels = stanceStudio_parts.getWheels()

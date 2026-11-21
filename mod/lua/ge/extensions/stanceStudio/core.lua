@@ -7,6 +7,7 @@ M.dependencies = {"stanceStudio_jbeam", "stanceStudio_preview", "stanceStudio_pa
 local stance = require("ge/extensions/stanceStudio/stance")
 local fun = require("ge/extensions/stanceStudio/fun")
 local mp = require("ge/extensions/stanceStudio/mp")
+local share = require("ge/extensions/stanceStudio/share")
 
 local ACTION = "stanceStudio_toggle"
 local ROUTE = "stanceStudio"
@@ -246,7 +247,7 @@ end
 function M.getState()
   if not settings then loadSettings() end
   local state = {settings = settings, keybind = getKeybind(), isCareer = careerActive() and true or false,
-    multiplayer = mp.active()}
+    multiplayer = mp.kind() or false}
   local veh, vehData, vehId = getVeh()
   if not veh then
     state.vehicle = nil
@@ -293,9 +294,22 @@ M.pushState = pushState
 
 -- MARK: apply
 
+-- the car's engine sections, for the tuning-value copy (share.lua)
+local function enginesOf(vehData)
+  local ok, res = pcall(fun.engineSections, vehData and vehData.vdata or {})
+  return ok and res or {}
+end
+
+-- keep the tuning-value copy of the stance and Fun edits in step (Tandem sends only those)
+local function writeShare(vehData)
+  local ok, err = pcall(share.write, vehData and vehData.config, enginesOf(vehData))
+  if not ok then log('E', 'stanceStudio', 'copying the stance into tuning values failed: ' .. tostring(err)) end
+end
+
 local function respawnWithStance(veh, vehData, cfg)
   vehData.config.stanceStudio = cfg
-  core_vehicle_partmgmt.setConfig({stanceStudio = cfg}, true)
+  writeShare(vehData)
+  core_vehicle_partmgmt.setConfig({stanceStudio = cfg, vars = vehData.config.vars}, true)
 end
 
 -- newCfg comes from the UI (axle values only, the rest is kept)
@@ -428,10 +442,12 @@ end
 
 function M.onVehicleSpawned(vid)
   axleCache[vid] = nil
-  if mp.isOwn(vid) then
+  local data = core_vehicle_manager.getVehicleData(vid)
+  if data then
     -- so a config loaded without our keys clears them on the other players' copy too (see mp.lua)
-    local data = core_vehicle_manager.getVehicleData(vid)
-    if data then mp.fillMissing(data.config) end
+    if mp.isOwn(vid) then mp.fillMissing(data.config) end
+    -- the tuning-value copy for Tandem (a config loaded without it, or changed by the game's own menus)
+    writeShare(data)
   end
   if pendingMeasure and pendingMeasure.vehId == vid then
     pendingMeasure.timer = SETTLE_TIME
@@ -716,7 +732,8 @@ function M.funApply(edits)
   -- set it directly first, and false (not nil) for "no edits": setConfig and BeamMP merge configs
   -- key by key, and a nil key would keep the old edits (in multiplayer: on everyone else's screen)
   vehData.config.stanceStudioFun = n > 0 and {v = fun.VERSION, edits = clean} or false
-  core_vehicle_partmgmt.setConfig({stanceStudioFun = vehData.config.stanceStudioFun}, true)
+  writeShare(vehData)
+  core_vehicle_partmgmt.setConfig({stanceStudioFun = vehData.config.stanceStudioFun, vars = vehData.config.vars}, true)
   log('I', 'stanceStudio', 'JBeam edits: ' .. n)
   pushState()
 end
