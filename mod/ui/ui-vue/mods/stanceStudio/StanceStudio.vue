@@ -5,6 +5,9 @@
         <div class="ss-title">
           <div class="ss-brand">STANCE <span>STUDIO</span></div>
           <div class="ss-car">{{ vehicleName }}</div>
+          <div v-if="store.state?.multiplayer" class="ss-mp" title="Your stance, wheels, parts, tuning and Fun edits are sent with your car. Players who have Stance Studio (the server hands it out) see them.">
+            Multiplayer · your changes sync to the other players
+          </div>
         </div>
         <button class="ss-close" title="Close (Esc)" @click="close">✕</button>
       </header>
@@ -19,6 +22,10 @@
       </div>
       <div v-if="store.loading" class="ss-empty">Loading…</div>
       <div v-else-if="!store.state?.vehicle" class="ss-empty">Get in a vehicle to start tuning.</div>
+      <div v-else-if="store.state.vehicle.remote" class="ss-empty">
+        This is {{ store.state.vehicle.owner ? store.state.vehicle.owner + "'s" : "another player's" }} car.
+        In multiplayer you can only change your own car.
+      </div>
       <div v-else class="ss-content">
         <StanceTab v-if="activeTab === 'stance'" />
         <WheelsTab v-else-if="activeTab === 'wheels'" />
@@ -154,6 +161,7 @@ onUnmounted(() => {
   span { color: var(--bng-orange, #ff6600); }
 }
 .ss-car { opacity: 0.65; font-size: 0.9rem; margin-top: 0.15rem; }
+.ss-mp { font-size: 0.72rem; margin-top: 0.2rem; color: #7dd3fc; opacity: 0.85; }
 .ss-close {
   border: 0;
   background: rgba(255, 255, 255, 0.08);

@@ -7,7 +7,7 @@ cd "$(dirname "$0")"
 export G="${G:-$HOME/.local/share/Steam/steamapps/common/BeamNG.drive}"
 export MOD="${MOD:-$(cd .. && pwd)/mod}"
 status=0
-for t in stance_test photo_test fun_test hook_test; do
+for t in stance_test photo_test fun_test hook_test mp_test; do
   out=$(luajit "$t.lua" 2>&1); last=$(echo "$out" | tail -1)
   echo "$t: $(echo "$out" | grep -c '^PASS') passed, $last"
   echo "$out" | grep '^FAIL' && status=1

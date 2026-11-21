@@ -52,9 +52,25 @@ Stance settings are saved with the vehicle config, so saved `.pc` files keep the
    - Linux: `~/.local/share/BeamNG/BeamNG.drive/current/mods/`
 3. Start the game, load a freeroam map and press **Alt+E**.
 
+## Multiplayer (BeamMP)
+
+BeamMP turns off every mod the server doesn't have, so the server has to hand it out:
+
+1. Put `stancestudio.zip` in the server's `Resources/Client/` folder and restart the server.
+2. Everyone who joins downloads it automatically. Press **Alt+E** in your car as usual.
+
+What you change is sent with your car, so every player on the server sees your car the way you
+built it: stance, wheels, parts, tuning and the Fun stuff engine and car edits (power, boost,
+indestructible engine, weight, grip and the rest). On a server some things work differently:
+
+- You can only change your own car. The menu won't open in another player's car.
+- Gravity and speed of time are off: they would only change your game and fight the server's sync.
+- Rim photos are taken in singleplayer (the photo car would show up for everyone). Photos you already
+  took show up in multiplayer too.
+
 ## Notes
 
-- Made for BeamNG.drive 0.40. Singleplayer only for now. It is turned off in career mode.
+- Made for BeamNG.drive 0.40, singleplayer and BeamMP. It is turned off in career mode.
 - Wheel photos are taken once per rim: the first time you open the Wheels tab, a temporary copy of
   your car parks behind you and each rim is photographed on its own. It takes about a second per
   rim, keep the menu open until it is done. The photos are saved in

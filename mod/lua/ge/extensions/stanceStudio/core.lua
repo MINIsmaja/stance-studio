@@ -6,6 +6,7 @@ M.dependencies = {"stanceStudio_jbeam", "stanceStudio_preview", "stanceStudio_pa
 
 local stance = require("ge/extensions/stanceStudio/stance")
 local fun = require("ge/extensions/stanceStudio/fun")
+local mp = require("ge/extensions/stanceStudio/mp")
 
 local ACTION = "stanceStudio_toggle"
 local ROUTE = "stanceStudio"
@@ -244,7 +245,8 @@ end
 
 function M.getState()
   if not settings then loadSettings() end
-  local state = {settings = settings, keybind = getKeybind(), isCareer = careerActive() and true or false}
+  local state = {settings = settings, keybind = getKeybind(), isCareer = careerActive() and true or false,
+    multiplayer = mp.active()}
   local veh, vehData, vehId = getVeh()
   if not veh then
     state.vehicle = nil
@@ -252,7 +254,8 @@ function M.getState()
   end
   local cfg = currentStance(vehData)
   local m = isAtRest(veh) and measure(veh, vehData.vdata) or nil
-  if m and not pendingMeasure then updateBaseline(veh, vehData, cfg, m) end
+  local remote = mp.isRemote(vehId)
+  if m and not pendingMeasure and not remote then updateBaseline(veh, vehData, cfg, m) end
   local actual = {}
   if m then
     for _, axle in ipairs({"F", "R"}) do
@@ -265,6 +268,8 @@ function M.getState()
     name = modelName(vehData),
     bodyStyle = bodyStyleOf(vehData),
     configName = vehData.config and vehData.config.partConfigFilename,
+    remote = remote or nil,                        -- another player's car (multiplayer)
+    owner = remote and mp.ownerName(vehId) or nil,
   }
   state.stance = cfg
   state.report = hook().reports[vehId]
@@ -299,7 +304,7 @@ local VALID_METHODS = {auto = true, springs = true, hub = true}
 function M.applyStance(newCfg)
   if careerActive() then toast("warning", "Stance Studio is disabled in career mode") return end
   local veh, vehData, vehId = getVeh()
-  if not veh then return end
+  if not veh or mp.blocked(vehId) then return end
   stanceStudio_preview.clear()
   newCfg = type(newCfg) == "table" and newCfg or {}
   local old = currentStance(vehData)
@@ -423,6 +428,11 @@ end
 
 function M.onVehicleSpawned(vid)
   axleCache[vid] = nil
+  if mp.isOwn(vid) then
+    -- so a config loaded without our keys clears them on the other players' copy too (see mp.lua)
+    local data = core_vehicle_manager.getVehicleData(vid)
+    if data then mp.fillMissing(data.config) end
+  end
   if pendingMeasure and pendingMeasure.vehId == vid then
     pendingMeasure.timer = SETTLE_TIME
   end
@@ -438,6 +448,11 @@ end
 function M.onVehicleSwitched()
   pendingMeasure = nil
   stanceStudio_preview.clear()
+  local veh = getPlayerVehicle(0)
+  if isOpen and veh and mp.blocked(veh:getID()) then
+    M.close()
+    return
+  end
   if isOpen then pushState() end
 end
 
@@ -568,6 +583,7 @@ function M.open()
   if getMissionFilename() == '' then return end
   if not getPlayerVehicle(0) then toast("warning", "Get in a vehicle first") return end
   if careerActive() then toast("warning", "Stance Studio is disabled in career mode") return end
+  if mp.blocked(getPlayerVehicle(0):getID()) then return end
   ensureRoute()
   extensions.ui_router.navigate(ROUTE)
 end
@@ -643,12 +659,22 @@ end
 function M.funWorld()
   local g = core_environment and core_environment.getGravity and core_environment.getGravity() or -9.81
   local speed = simTimeAuthority and simTimeAuthority.get and simTimeAuthority.get() or 1
-  return {gravity = tonumber(g) or -9.81, simSpeed = tonumber(speed) or 1}
+  return {gravity = tonumber(g) or -9.81, simSpeed = tonumber(speed) or 1, multiplayer = mp.active()}
+end
+
+-- gravity and time speed only change your own game, which fights BeamMP's sync: singleplayer only
+local function worldBlocked()
+  if mp.active() then
+    toast("warning", "Gravity and time speed are off in multiplayer: they would only change your game.")
+    return true
+  end
+  return false
 end
 
 -- gravity in m/s², the game's sign: -9.81 is Earth, +9.81 pulls you up
 function M.funSetGravity(g)
   if careerActive() then toast("warning", "Stance Studio is disabled in career mode") return end
+  if worldBlocked() then return end
   g = tonumber(g)
   if not g or g ~= g or not core_environment then return end
   core_environment.setGravity(math.min(math.max(g, -300), 300))
@@ -657,6 +683,7 @@ end
 -- 1 = real time, 0.5 = half speed
 function M.funSetSimSpeed(s)
   if careerActive() then toast("warning", "Stance Studio is disabled in career mode") return end
+  if worldBlocked() then return end
   s = tonumber(s)
   if not s or s ~= s or not simTimeAuthority then return end
   simTimeAuthority.set(math.min(math.max(s, 0.01), 4))
@@ -680,14 +707,15 @@ end
 -- edits: list of edits from the UI (an empty list resets the car to its stock JBeam)
 function M.funApply(edits)
   if careerActive() then toast("warning", "Stance Studio is disabled in career mode") return end
-  local veh, vehData = getVeh()
-  if not veh or not vehData then return end
+  local veh, vehData, vehId = getVeh()
+  if not veh or not vehData or mp.blocked(vehId) then return end
   local clean = fun.normalizeEdits(edits)
   local n = 0
   for _ in pairs(clean) do n = n + 1 end
   stanceStudio_preview.clear()
-  -- set it directly first: setConfig merges tables, which would keep edits that were removed
-  vehData.config.stanceStudioFun = n > 0 and {v = fun.VERSION, edits = clean} or nil
+  -- set it directly first, and false (not nil) for "no edits": setConfig and BeamMP merge configs
+  -- key by key, and a nil key would keep the old edits (in multiplayer: on everyone else's screen)
+  vehData.config.stanceStudioFun = n > 0 and {v = fun.VERSION, edits = clean} or false
   core_vehicle_partmgmt.setConfig({stanceStudioFun = vehData.config.stanceStudioFun}, true)
   log('I', 'stanceStudio', 'JBeam edits: ' .. n)
   pushState()

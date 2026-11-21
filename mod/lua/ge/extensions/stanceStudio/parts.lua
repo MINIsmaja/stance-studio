@@ -6,6 +6,7 @@ local M = {}
 
 local jbeamIO = require('jbeam/io')
 local power = require('ge/extensions/stanceStudio/power')
+local mp = require('ge/extensions/stanceStudio/mp')
 
 -- lowercase: the game stores files under screenshots/ in lowercase anyway
 local PHOTO_DIR = "/screenshots/stancestudio/rims/"
@@ -515,7 +516,7 @@ end
 
 function M.setPart(slotPath, partName)
   local veh, vehData = getVeh()
-  if not veh then return false end
+  if not veh or mp.blocked(veh:getID()) then return false end
   local tree = deepcopy(vehData.config.partsTree)
   local node = findNode(tree, slotPath)
   if not node then
@@ -663,7 +664,7 @@ end
 -- axle: "F", "R", "B" (single slot) or "both"
 function M.setWheel(axle, partName)
   local veh, vehData = getVeh()
-  if not veh then return {ok = false} end
+  if not veh or mp.blocked(veh:getID()) then return {ok = false} end
   local available = jbeamIO.getAvailableParts(vehData.ioCtx) or {}
   local slots = wheelSlots(vehData, available)
   local tree = deepcopy(vehData.config.partsTree)
@@ -728,7 +729,7 @@ end
 function M.setVars(vars)
   if type(vars) ~= "table" then return end
   local veh, vehData = getVeh()
-  if not veh then return end
+  if not veh or mp.blocked(veh:getID()) then return end
   local merged = deepcopy(vehData.config.vars or {})
   for k, v in pairs(vars) do merged[k] = tonumber(v) or v end
   core_vehicle_partmgmt.setConfigVars(merged, true)

@@ -21,6 +21,12 @@
         </div>
         <div class="ss-progress"><div :style="{ width: photoPct + '%' }"></div></div>
       </div>
+      <div v-else-if="missingPhotos > 0 && s.photoPass !== 'off' && store.state?.multiplayer" class="ss-photo-bar">
+        <div class="ss-muted">
+          📷 {{ missingPhotos }} rims have no photo yet. Rim photos are taken in singleplayer: here the photo car
+          would show up for everyone on the server. Photos you already took show up here too.
+        </div>
+      </div>
       <div v-else-if="missingPhotos > 0 && s.photoPass !== 'off'" class="ss-photo-bar">
         <div class="ss-row ss-between">
           <span>📷 {{ missingPhotos }} rims have no photo yet (about {{ Math.ceil(missingPhotos * 1.2) }} s).</span>
@@ -139,7 +145,8 @@ async function load() {
   loading.value = false
   if (!hasSplit.value) target.value = byAxle.value.B ? "B" : (axles.value[0]?.axle || "F")
   const model = store.state?.vehicle?.model
-  if ((s.value.photoPass || "auto") === "auto" && missingPhotos.value > 0 && !photos.value.running && model && !autoStarted.has(model)) {
+  if ((s.value.photoPass || "auto") === "auto" && missingPhotos.value > 0 && !photos.value.running && model && !autoStarted.has(model)
+    && !store.state?.multiplayer) {
     autoStarted.add(model)
     takePhotos()
   }
@@ -159,6 +166,7 @@ function setTire(a, name) {
 async function takePhotos() {
   const res = await luaCall("stanceStudio_photos.start", true)
   if (res && res.ok === false && res.reason === "spawn") notify("Couldn't park the photo car behind you. Try a spot with more room.", "warning", 6000)
+  else if (res && res.ok === false && res.reason === "multiplayer") notify("Rim photos are taken in singleplayer", "warning", 5000)
   else if (res && res.ok === false && res.reason !== "running") notify("Could not start the photo pass", "error")
 }
 function cancelPhotos() { luaCall("stanceStudio_photos.cancel") }

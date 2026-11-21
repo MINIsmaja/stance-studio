@@ -7,6 +7,7 @@
 
 local M = {}
 M.dependencies = {"stanceStudio_jbeam", "stanceStudio_parts"}
+local mp = require("ge/extensions/stanceStudio/mp")
 
 local SETTLE = 0.5           -- real seconds after a respawn before aiming
 local EXPOSE_FIRST = 1.0     -- a fresh render view needs a moment before post effects converge
@@ -237,6 +238,8 @@ end
 -- onlyMissing: skip wheels that already have a photo
 function M.start(onlyMissing)
   if job then return {ok = false, reason = "running"} end
+  -- the helper car would be sent to the server like any other car: everyone would see it
+  if mp.active() then return {ok = false, reason = "multiplayer"} end
   local veh, vehData = getVeh()
   if not veh then log('I', 'stanceStudio', 'photo pass: no vehicle'); return {ok = false, reason = "novehicle"} end
   local wheels = stanceStudio_parts.getWheels()
@@ -277,6 +280,7 @@ function M.start(onlyMissing)
   local node = findNode(cfg.partsTree, queue[1].path)
   if node then node.chosenPartName = queue[1].name end
   cfg.stanceStudio = {photo = {part = queue[1].name}}
+  cfg.stanceStudioFun = false
   local pos, rot = helperSpot(veh)
   local model = stanceStudio_core.modelOf(vehData)
   if not model then log('W', 'stanceStudio', 'photo pass: unknown vehicle model'); return {ok = false, reason = "spawn"} end
